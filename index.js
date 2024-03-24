@@ -1,4 +1,5 @@
 import express, { response } from 'express';
+import mongoose from 'mongoose';
 import 'dotenv/config';
 import { validatePostId, apiMonitor } from './middleware.js';
 import logger from './logger.js'
@@ -39,4 +40,9 @@ app.get('/random', validatePostId, async ( req, res) => {
 
 
 const CYAN = `\x1b[96m`
-app.listen(port, () => console.log(`Listening to port: ${CYAN}http://localhost:${port}`));
+mongoose.connect(process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017/test')  //default: localhost test DB
+  .then(() => {
+    logger.log('Connected to mongoDB!');
+    app.listen(port, () => console.log(`Listening to port: ${CYAN}http://localhost:${port}`))
+  })
+  .catch(err => logger.error(`An error occured while connecting to mongoDB: ${err}`))
