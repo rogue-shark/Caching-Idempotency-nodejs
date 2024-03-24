@@ -6,4 +6,4 @@ const userSchema = new mongoose.Schema({
   });
   
   // Create a mongoose model
- export default User = mongoose.model('User', userSchema);
+ export default mongoose.model('User', userSchema);
