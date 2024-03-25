@@ -1,7 +1,7 @@
 import express, { response } from 'express';
 import mongoose from 'mongoose';
 import 'dotenv/config';
-import { validatePostId, apiMonitor } from './middleware.js';
+import { validatePostId, apiMonitor, checkIdempotency } from './middleware.js';
 import logger from './logger.js'
 import { setOrGetCachedData } from './utils.js';
 import User from './models/user.js'
@@ -41,14 +41,18 @@ app.get('/random', validatePostId, async ( req, res) => {
 })
 
 // Route to create a new user
-app.post('/users', async (req, res) => {
+app.post('/users', checkIdempotency, async (req, res) => {
     try {
       logger.log(`Incoming body param from request: ${JSON.stringify(req.body)}`) 
       const { username, email } = req.body;
   
+      const existingUser = await User.find({ email })
+      console.log(`Checking if user with same email already exists - result: ${existingUser} `)
+      if (existingUser.length > 0) {
+        return res.status(409).json({ error: 'A user with same emailId already exists. 🤥' })
+      }
       // Create a new user instance
       const newUser = new User({ username, email });
-  
       // Save the user to the database
       await newUser.save();
   
