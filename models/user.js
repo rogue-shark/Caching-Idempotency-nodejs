@@ -2,7 +2,11 @@ import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
     username: String,
-    email: String,
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
   });
   
   // Create a mongoose model

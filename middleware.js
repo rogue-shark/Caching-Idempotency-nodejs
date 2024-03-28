@@ -1,5 +1,6 @@
 import { createClient } from 'redis';
 import logger from "./logger.js";
+import { ApiResponse } from './utils.js';
 
 // Create Redis client :
 const redisClient = createClient();
@@ -8,7 +9,7 @@ export function validatePostId(req, res, next) {
     const { postId } = req.query
     if (postId === '') {
         logger.log(`Validation failed for query: postId 😢`)
-        return res.status(400).json({ 'Validation Error': `Query parameter 'postId' is not a string.` })
+        return ApiResponse.error(res, 400, `Query parameter 'postId' is not a string.`)
     }
     next()
 }
@@ -47,7 +48,9 @@ export async function checkIdempotency(req, res, next) {
         
         if (!idempotencyKey) {
             logger.log(`idempotency-key in header (${idempotencyKey}): Not Found! 😕`);
-            return res.status(400).json({ error: 'Idempotency key is required' });
+            return ApiResponse.error(res, 400, "Idempotency key is required", {
+              message: `An 'idempotency-key' is needed in headers`,
+            });
         }
         
         logger.log(`idempotency-key in header (${idempotencyKey}): Found! 😊`);
@@ -55,7 +58,7 @@ export async function checkIdempotency(req, res, next) {
     
         if (keyExists) {
             logger.log(`Request has already been processed for the idempotency-key (${idempotencyKey}) 😕`);
-            return res.status(409).json({ error: 'Request has already been processed' });
+            return ApiResponse.error(res, 400, 'Request has already been processed');
         }
     
         // If idempotency key doesn't exist in Redis, store it for future checks
@@ -64,7 +67,7 @@ export async function checkIdempotency(req, res, next) {
         logger.log(`The current idempotency-key ${idempotencyKey}) is cached successfully! 😊`);
             
         next();
-    } catch (error) {
+    } catch (err) {
         logger.error(`An error occurred during redis operation 💀 - ${err}`);
         throw err;
     } finally {

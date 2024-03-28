@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import 'dotenv/config';
 import { validatePostId, apiMonitor, checkIdempotency } from './middleware.js';
 import logger from './logger.js'
-import { setOrGetCachedData } from './utils.js';
+import { setOrGetCachedData, ApiResponse } from './utils.js';
 import User from './models/user.js'
 
 const app = express();
@@ -11,6 +11,8 @@ const port = process.env.PORT ?? 8080
 
 app.use(apiMonitor) //As global middleware 
 app.use(express.json()); // Middleware to parse JSON bodies
+
+app.get('/', (req, res) => res.send(`<h1>👋🌍</h1>`))
 
 app.get('/health', (req, res) => {
     const resp = {
@@ -47,19 +49,19 @@ app.post('/users', checkIdempotency, async (req, res) => {
       const { username, email } = req.body;
   
       const existingUser = await User.find({ email })
-      console.log(`Checking if user with same email already exists - result: ${existingUser} `)
+      logger.log(`Checking if user with same email already exists - result: ${existingUser} `)
       if (existingUser.length > 0) {
-        return res.status(409).json({ error: 'A user with same emailId already exists. 🤥' })
+       return ApiResponse.success(res, 200, 'A user with same emailId already exists.', [], {code: 409 })
       }
       // Create a new user instance
       const newUser = new User({ username, email });
       // Save the user to the database
       await newUser.save();
-  
-      res.status(201).json(newUser);
+
+      ApiResponse.success(res, 201, 'User successfully created!', newUser)
     } catch (err) {
       logger.error(`An error occurred while creating user: ${err}`);
-      res.status(500).send(`Oops! An error occurred. 😵`);
+      return ApiResponse.error(res, 500, 'Oops! Something went wrong.');
     }
   });
 
