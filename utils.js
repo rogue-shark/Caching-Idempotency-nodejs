@@ -5,13 +5,16 @@ import logger from './logger.js'
 // Create Redis client :
 const redisClient = createClient();
 const defaultExpiration = process.env.DEFAULT_EXPIRATION ?? 3600
+redisClient
+  .connect()
+  .then(() => logger.log(`Connected to Redis!`))
+  .catch((err) => logger.error(`Error connecting to Redis : ${err}`));
 
 export async function setOrGetCachedData(key, apiParam, expiry = defaultExpiration) {
     const { url, config } = apiParam;
     try {
         logger.log(`Inside setOrGetCachedData - Starting operation 😀 (for key: ${key}) ...`);
 
-        await redisClient.connect();
 
         const cachedData = await redisClient.get(key);
         if (cachedData) {
@@ -35,9 +38,10 @@ export async function setOrGetCachedData(key, apiParam, expiry = defaultExpirati
     } catch (err) {
         logger.error(`An error occurred during redis operation 💀 - ${err}`);
         throw err;
-    } finally {
-        if (redisClient.isOpen)  await redisClient.quit();
-    }
+    } 
+    // finally {
+    //     if (redisClient.isOpen)  await redisClient.quit();
+    // }
 }
 
 
