@@ -66,7 +66,7 @@ export async function checkIdempotency(req, res, next) {
        );
        console.log(req.ip)
         const timebasedUuid = (new Date()).getMilliseconds();  //TODO uuidv1() 
-        const idempotencyKey =  `sourceDetails-${req.ip}-${timebasedUuid}`; //TODO sourceDetails could include eg: (sourceId / sourceName)
+        const idempotencyKey =  `sourceDetails-${reqHash}-${timebasedUuid}`; //TODO sourceDetails could include eg: (sourceId / sourceName)
         
         const existingKey = await redisClient.get(idempotencyKey)
         logger.log(existingKey === reqHash)    
