@@ -73,7 +73,7 @@ export async function checkIdempotency(req, res, next) {
         if (existingKey && existingKey === reqHash) {
             logger.log(`Checking idempotency-key (${idempotencyKey}) in cache : Found! 😊 - Result: ${existingKey}`);
             logger.log(`Request has already been processed for the idempotency-key (${idempotencyKey}) 😒`);
-            return ApiResponse.error(res, 400, 'Request has already been processed.');
+            return ApiResponse.error(res, 409, 'Request has already been processed.');
         }
         logger.log(`Checking idempotency-key (${idempotencyKey}) in cache : Not Found! 😕`);
         
