@@ -1,9 +1,17 @@
 import { createClient } from 'redis';
 import logger from "./logger.js";
 import { ApiResponse } from './utils.js';
+import { v1 as uuidv1 } from 'uuid'
+import { createHash } from 'node:crypto';
 
 // Create Redis client :
 const redisClient = createClient();
+redisClient
+  .connect()
+  .then(() => logger.log(`Connected to Redis!`))
+  .catch((err) => logger.error(`Error connecting to Redis : ${err}`));
+
+
 // Middlewares -------------------
 export function validatePostId(req, res, next) {
     const { postId } = req.query
@@ -14,6 +22,7 @@ export function validatePostId(req, res, next) {
     next()
 }
 
+//Global middleware for each req - res cycle 
 export function apiMonitor(req, res, next) {
     const getCurrentTime = () => {
         const now = new Date();
@@ -42,35 +51,55 @@ export function apiMonitor(req, res, next) {
 // Middleware to check idempotency
 export async function checkIdempotency(req, res, next) {
     try {  
-        await redisClient.connect();
-    
-        const idempotencyKey = req.headers['idempotency-key'];
+        const { headers, body, originalUrl, method, ip  } = req
+        /*
+        to get uuid based timestamp (in ns) --> use uuidv1()
+        NOTE: But the chance of idempotency implementation being bypassed increases --
+              becuase with increase in accuracy of timestamp generation for each request,
+              the chance of it being interpreted as unique request increases (even if it 's not the case).
+              So it should depend on the usecase, and demands of the application / service.
+        (new Date()).getMilliseconds()
+        (new Date()).getSeconds()
+       */
+       const reqHash = await generateHash(
+         JSON.stringify({ ip, originalUrl, method, body }) //TODO + headers ?
+       );
+       console.log(req.ip)
+        const timebasedUuid = (new Date()).getMilliseconds();  //TODO uuidv1() 
+        const idempotencyKey =  `sourceDetails-${req.ip}-${timebasedUuid}`; //TODO sourceDetails could include eg: (sourceId / sourceName)
         
-        if (!idempotencyKey) {
-            logger.log(`idempotency-key in header (${idempotencyKey}): Not Found! 😕`);
-            return ApiResponse.error(res, 400, "Idempotency key is required", {
-              message: `An 'idempotency-key' is needed in headers`,
-            });
+        const existingKey = await redisClient.get(idempotencyKey)
+        logger.log(existingKey === reqHash)    
+        if (existingKey && existingKey === reqHash) {
+            logger.log(`Checking idempotency-key (${idempotencyKey}) in cache : Found! 😊 - Result: ${existingKey}`);
+            logger.log(`Request has already been processed for the idempotency-key (${idempotencyKey}) 😒`);
+            return ApiResponse.error(res, 400, 'Request has already been processed.');
         }
+        logger.log(`Checking idempotency-key (${idempotencyKey}) in cache : Not Found! 😕`);
         
-        logger.log(`idempotency-key in header (${idempotencyKey}): Found! 😊`);
-        const keyExists = await redisClient.get(idempotencyKey)
-    
-        if (keyExists) {
-            logger.log(`Request has already been processed for the idempotency-key (${idempotencyKey}) 😕`);
-            return ApiResponse.error(res, 400, 'Request has already been processed');
-        }
-    
         // If idempotency key doesn't exist in Redis, store it for future checks
         const expiryTime = process.env.DEFAULT_EXPIRATION ?? 3600 //default: expire key after 1 hour
-        redisClient.setEx(idempotencyKey, expiryTime, 'processed');
-        logger.log(`The current idempotency-key ${idempotencyKey}) is cached successfully! 😊`);
+        redisClient.setEx(idempotencyKey, expiryTime, reqHash);
+        logger.log(`The current idempotency-key ${idempotencyKey}) is cached successfully with value : ${reqHash}`);
             
         next();
     } catch (err) {
         logger.error(`An error occurred during redis operation 💀 - ${err}`);
         throw err;
-    } finally {
-        if (redisClient.isOpen)  await redisClient.quit();
     }
+    // finally {
+    //     if (redisClient.isOpen)  await redisClient.quit();
+    // }
+}
+
+
+function generateHash(string, algo = 'sha256') {
+    const hash = createHash(algo);
+    hash.update(string);
+    return hash.digest('hex');
+}
+
+function verifyHash(string, hashToCompare, algo = 'sha256') {
+    const generatedHash = generateHash(string, algo);
+    return generatedHash === hashToCompare;
 }
